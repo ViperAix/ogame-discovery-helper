@@ -20,6 +20,7 @@
         const DISCOVERY_RESEND_SCAN_INTERVAL_MS = 800;
 
         let resendScanTimer = null;
+        let lastHandledFleetStatusId = null;
 
         function loadData () {
             try {
@@ -294,6 +295,42 @@
             }, DISCOVERY_RESEND_SCAN_INTERVAL_MS);
         }
 
+        function handleFleetStatusSuccess () {
+            const status = document.querySelector("#fleetstatusrow .success[id^='fleetstatus']");
+            if (!status) {
+                return;
+            }
+
+            const id = status.id || "";
+            const text = status.textContent || "";
+
+            if (!id || id === lastHandledFleetStatusId) {
+                return;
+            }
+
+            if (!/erkundungsschiff\s+entsandt/i.test(text)) {
+                return;
+            }
+
+            lastHandledFleetStatusId = id;
+            reserveNextDiscoveryTarget();
+            scheduleDiscoverySendRescanBurst();
+        }
+
+        function observeFleetStatus () {
+            const observer = new MutationObserver(() => {
+                handleFleetStatusSuccess();
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                characterData: true
+            });
+
+            handleFleetStatusSuccess();
+        }
+
         function createUI () {
             let box = document.getElementById("discoverHelper");
             if (box) {
@@ -414,6 +451,7 @@
             updateUI();
             observeGalaxy();
             observeDiscoveryActions();
+            observeFleetStatus();
 
             setTimeout(() => {
                 runScanAndRefresh();
