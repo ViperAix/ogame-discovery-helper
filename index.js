@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OGame Discovery Helper
 // @namespace    ogame.discovery.helper
-// @version      18.3
+// @version      18.4
 // @description  Discovery Tracker
 // @match        https://*.ogame.gameforge.com/game/*
 // @grant        none
@@ -298,8 +298,10 @@
             box.style.zIndex = "9999";
             box.style.borderRadius = "6px";
             box.style.lineHeight = "1.4";
-            box.style.minWidth = "190px";
-            box.style.marginTop = "10px";
+            box.style.display = "flex";
+            box.style.flexDirection = "column";
+            box.style.top = "10px";
+            box.style.marginBottom = "20px";
 
             const toolbar = document.getElementById("toolbarcomponent");
             if (toolbar && toolbar.parentNode) {
@@ -323,7 +325,7 @@
 
             let html = "";
             html += "Aktueller Planet<br>";
-            html += "<b>" + planet.galaxy + ":" + planet.system + ":" + planet.position + "</b><br><br>";
+            html += "<b>" + planet.galaxy + ":" + planet.system + ":" + planet.position + "</b><br>";
 
             if (!next) {
                 html += "Keine freie Entdeckung gefunden";
