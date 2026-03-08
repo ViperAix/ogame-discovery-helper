@@ -325,7 +325,7 @@
 
             let html = "";
             html += "Aktueller Planet<br>";
-            html += "<b>" + planet.galaxy + ":" + planet.system + ":" + planet.position + "</b><br><br>";
+            html += "<b>" + planet.galaxy + ":" + planet.system + ":" + planet.position + "</b><br>";
 
             if (!next) {
                 html += "Keine freie Entdeckung gefunden";
