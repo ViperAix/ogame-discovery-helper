@@ -210,6 +210,29 @@
             return MAX_GALAXY_DEFAULT;
         }
 
+        function resetExpiredDiscoveryEntries () {
+            const data = loadData();
+            const now = Date.now();
+            let hasChanges = false;
+
+            for (const key of Object.keys(data)) {
+                const value = data[key];
+
+                if (typeof value !== "number") {
+                    continue;
+                }
+
+                if (value > 0 && value <= now) {
+                    data[key] = 0;
+                    hasChanges = true;
+                }
+            }
+
+            if (hasChanges) {
+                saveData(data);
+            }
+        }
+
         function ensureAllDiscoveryEntries () {
             const maxGalaxy = getMaxGalaxy();
             const data = loadData();
@@ -503,6 +526,7 @@
         }
 
         function init () {
+            resetExpiredDiscoveryEntries();
             ensureAllDiscoveryEntries();
             createUI();
             updateUI();
