@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OGame Discovery Helper
 // @namespace    ogame.discovery.helper
-// @version      18.0
+// @version      18.3
 // @description  Discovery Tracker
 // @match        https://*.ogame.gameforge.com/game/*
 // @grant        none
@@ -16,6 +16,10 @@
         const MAX_POSITION = 15;
         const SCAN_DELAY = 250;
         const DISCOVERY_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+        const DISCOVERY_RESEND_SCAN_COUNT = 12;
+        const DISCOVERY_RESEND_SCAN_INTERVAL_MS = 800;
+
+        let resendScanTimer = null;
 
         function loadData () {
             try {
@@ -127,6 +131,14 @@
             return Date.now() + DISCOVERY_COOLDOWN_MS;
         }
 
+        function isFleetSlotLimit (text) {
+            if (!text) {
+                return false;
+            }
+
+            return /maximale\s+anzahl\s+flotten\s+erreicht|keine\s+freien\s+flottenslots\s+verf[üu]gbar/i.test(text);
+        }
+
         function normalizeSystem (system) {
             let result = system;
 
@@ -190,6 +202,11 @@
 
                 if (icon.classList.contains("planetDiscoverUnavailable")) {
                     const tooltip = icon.getAttribute("data-tooltip-title") || "";
+
+                    if (isFleetSlotLimit(tooltip)) {
+                        return;
+                    }
+
                     data[key] = getUnavailableUntil(tooltip);
                     return;
                 }
@@ -237,6 +254,32 @@
             return null;
         }
 
+
+        function runScanAndRefresh () {
+            scanSystem();
+            updateUI();
+        }
+
+        function scheduleDiscoverySendRescanBurst () {
+            if (resendScanTimer) {
+                clearInterval(resendScanTimer);
+                resendScanTimer = null;
+            }
+
+            let runs = 0;
+            runScanAndRefresh();
+
+            resendScanTimer = setInterval(() => {
+                runScanAndRefresh();
+                runs += 1;
+
+                if (runs >= DISCOVERY_RESEND_SCAN_COUNT) {
+                    clearInterval(resendScanTimer);
+                    resendScanTimer = null;
+                }
+            }, DISCOVERY_RESEND_SCAN_INTERVAL_MS);
+        }
+
         function createUI () {
             let box = document.getElementById("discoverHelper");
             if (box) {
@@ -246,9 +289,7 @@
             box = document.createElement("div");
             box.id = "discoverHelper";
 
-            box.style.position = "fixed";
-            box.style.right = "20px";
-            box.style.bottom = "120px";
+            box.style.position = "relative";
             box.style.background = "rgba(0,0,0,0.85)";
             box.style.color = "white";
             box.style.padding = "12px";
@@ -258,6 +299,13 @@
             box.style.borderRadius = "6px";
             box.style.lineHeight = "1.4";
             box.style.minWidth = "190px";
+            box.style.marginTop = "10px";
+
+            const toolbar = document.getElementById("toolbarcomponent");
+            if (toolbar && toolbar.parentNode) {
+                toolbar.insertAdjacentElement("afterend", box);
+                return box;
+            }
 
             document.body.appendChild(box);
             return box;
@@ -297,13 +345,11 @@
 
         function scheduleRescan () {
             setTimeout(() => {
-                scanSystem();
-                updateUI();
+                runScanAndRefresh();
             }, SCAN_DELAY);
 
             setTimeout(() => {
-                scanSystem();
-                updateUI();
+                runScanAndRefresh();
             }, 900);
         }
 
@@ -325,14 +371,26 @@
             scheduleRescan();
         }
 
+
+        function observeDiscoveryActions () {
+            document.addEventListener("click", (event) => {
+                const target = event.target instanceof Element ? event.target.closest("#ago_discovery") : null;
+                if (!target) {
+                    return;
+                }
+
+                scheduleDiscoverySendRescanBurst();
+            }, true);
+        }
+
         function init () {
             createUI();
             updateUI();
             observeGalaxy();
+            observeDiscoveryActions();
 
             setTimeout(() => {
-                scanSystem();
-                updateUI();
+                runScanAndRefresh();
             }, 1200);
         }
 
