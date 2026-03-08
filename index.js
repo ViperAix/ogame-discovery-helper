@@ -20,6 +20,7 @@
         const DISCOVERY_RESEND_SCAN_INTERVAL_MS = 800;
 
         let resendScanTimer = null;
+        let lastHandledFleetStatusId = null;
 
         function loadData () {
             try {
@@ -260,6 +261,20 @@
             updateUI();
         }
 
+        function reserveNextDiscoveryTarget () {
+            const next = findNext();
+            if (!next) {
+                return;
+            }
+
+            const data = loadData();
+            const key = next.g + ":" + next.s + ":" + next.p;
+
+            data[key] = Date.now() + DISCOVERY_COOLDOWN_MS;
+            saveData(data);
+            updateUI();
+        }
+
         function scheduleDiscoverySendRescanBurst () {
             if (resendScanTimer) {
                 clearInterval(resendScanTimer);
@@ -278,6 +293,42 @@
                     resendScanTimer = null;
                 }
             }, DISCOVERY_RESEND_SCAN_INTERVAL_MS);
+        }
+
+        function handleFleetStatusSuccess () {
+            const status = document.querySelector("#fleetstatusrow .success[id^='fleetstatus']");
+            if (!status) {
+                return;
+            }
+
+            const id = status.id || "";
+            const text = status.textContent || "";
+
+            if (!id || id === lastHandledFleetStatusId) {
+                return;
+            }
+
+            if (!/erkundungsschiff\s+entsandt/i.test(text)) {
+                return;
+            }
+
+            lastHandledFleetStatusId = id;
+            reserveNextDiscoveryTarget();
+            scheduleDiscoverySendRescanBurst();
+        }
+
+        function observeFleetStatus () {
+            const observer = new MutationObserver(() => {
+                handleFleetStatusSuccess();
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                characterData: true
+            });
+
+            handleFleetStatusSuccess();
         }
 
         function createUI () {
@@ -376,11 +427,21 @@
 
         function observeDiscoveryActions () {
             document.addEventListener("click", (event) => {
-                const target = event.target instanceof Element ? event.target.closest("#ago_discovery") : null;
+                const source = event.target instanceof Element
+                    ? event.target
+                    : event.target instanceof Node
+                        ? event.target.parentElement
+                        : null;
+                if (!source) {
+                    return;
+                }
+
+                const target = source.closest("#ago_discovery");
                 if (!target) {
                     return;
                 }
 
+                reserveNextDiscoveryTarget();
                 scheduleDiscoverySendRescanBurst();
             }, true);
         }
@@ -390,6 +451,7 @@
             updateUI();
             observeGalaxy();
             observeDiscoveryActions();
+            observeFleetStatus();
 
             setTimeout(() => {
                 runScanAndRefresh();
