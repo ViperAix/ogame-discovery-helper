@@ -15,6 +15,7 @@
         const MAX_SYSTEM = 499;
         const MAX_POSITION = 15;
         const SCAN_DELAY = 250;
+        const DISCOVERY_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
         function loadData () {
             try {
@@ -89,7 +90,16 @@
         }
 
         function parseCooldown (text) {
-            const match = text.match(/(\d+)t\s*(\d+)h\s*(\d+)m\s*(\d+)s/);
+            if (!text) {
+                return null;
+            }
+
+            const plainText = text
+                .replace(/<[^>]+>/g, " ")
+                .replace(/&nbsp;/g, " ")
+                .trim();
+
+            const match = plainText.match(/(\d+)\s*(?:t|d)\s*(\d+)\s*h\s*(\d+)\s*m\s*(\d+)\s*s/i);
             if (!match) {
                 return null;
             }
@@ -106,6 +116,15 @@
                     ) * 60 + m
                 ) * 60 + s
             ) * 1000;
+        }
+
+        function getUnavailableUntil (tooltip) {
+            const parsed = parseCooldown(tooltip);
+            if (parsed) {
+                return parsed;
+            }
+
+            return Date.now() + DISCOVERY_COOLDOWN_MS;
         }
 
         function normalizeSystem (system) {
@@ -171,11 +190,7 @@
 
                 if (icon.classList.contains("planetDiscoverUnavailable")) {
                     const tooltip = icon.getAttribute("data-tooltip-title") || "";
-                    const cooldown = parseCooldown(tooltip);
-
-                    if (cooldown) {
-                        data[key] = cooldown;
-                    }
+                    data[key] = getUnavailableUntil(tooltip);
                     return;
                 }
 
