@@ -14,12 +14,14 @@
         const STORAGE_KEY = "ogameDiscovery";
         const MAX_SYSTEM = 499;
         const MAX_POSITION = 15;
+        const MAX_GALAXY_DEFAULT = 9;
         const SCAN_DELAY = 250;
         const DISCOVERY_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
         const DISCOVERY_RESEND_SCAN_COUNT = 12;
         const DISCOVERY_RESEND_SCAN_INTERVAL_MS = 800;
 
         let resendScanTimer = null;
+        let lastHandledFleetStatusId = null;
 
         function loadData () {
             try {
@@ -169,6 +171,51 @@
             return order;
         }
 
+        function getMaxGalaxy () {
+            const gInput = document.querySelector("#galaxy_input");
+            if (!gInput) {
+                return MAX_GALAXY_DEFAULT;
+            }
+
+            const candidates = [
+                gInput.getAttribute("max"),
+                gInput.getAttribute("data-max"),
+                gInput.dataset ? gInput.dataset.max : null,
+            ];
+
+            for (const value of candidates) {
+                const maxGalaxy = parseInt(value || "", 10);
+                if (Number.isFinite(maxGalaxy) && maxGalaxy > 0) {
+                    return maxGalaxy;
+                }
+            }
+
+            return MAX_GALAXY_DEFAULT;
+        }
+
+        function ensureAllDiscoveryEntries () {
+            const maxGalaxy = getMaxGalaxy();
+            const data = loadData();
+            let hasChanges = false;
+
+            for (let g = 1; g <= maxGalaxy; g++) {
+                for (let s = 1; s <= MAX_SYSTEM; s++) {
+                    for (let p = 1; p <= MAX_POSITION; p++) {
+                        const key = g + ":" + s + ":" + p;
+
+                        if (!(key in data)) {
+                            data[key] = 0;
+                            hasChanges = true;
+                        }
+                    }
+                }
+            }
+
+            if (hasChanges) {
+                saveData(data);
+            }
+        }
+
         function scanSystem () {
             const coords = getVisibleGalaxyCoords();
             if (!coords) {
@@ -232,14 +279,7 @@
             for (const system of systems) {
                 for (let p = 1; p <= MAX_POSITION; p++) {
                     const key = start.galaxy + ":" + system + ":" + p;
-
-                    if (!(
-                        key in data
-                    )) {
-                        continue;
-                    }
-
-                    const value = data[key];
+                    const value = key in data ? data[key] : 0;
 
                     if (value === 0 || value < now) {
                         return {
@@ -257,6 +297,20 @@
 
         function runScanAndRefresh () {
             scanSystem();
+            updateUI();
+        }
+
+        function reserveNextDiscoveryTarget () {
+            const next = findNext();
+            if (!next) {
+                return;
+            }
+
+            const data = loadData();
+            const key = next.g + ":" + next.s + ":" + next.p;
+
+            data[key] = Date.now() + DISCOVERY_COOLDOWN_MS;
+            saveData(data);
             updateUI();
         }
 
@@ -278,6 +332,42 @@
                     resendScanTimer = null;
                 }
             }, DISCOVERY_RESEND_SCAN_INTERVAL_MS);
+        }
+
+        function handleFleetStatusSuccess () {
+            const status = document.querySelector("#fleetstatusrow .success[id^='fleetstatus']");
+            if (!status) {
+                return;
+            }
+
+            const id = status.id || "";
+            const text = status.textContent || "";
+
+            if (!id || id === lastHandledFleetStatusId) {
+                return;
+            }
+
+            if (!/erkundungsschiff\s+entsandt/i.test(text)) {
+                return;
+            }
+
+            lastHandledFleetStatusId = id;
+            reserveNextDiscoveryTarget();
+            scheduleDiscoverySendRescanBurst();
+        }
+
+        function observeFleetStatus () {
+            const observer = new MutationObserver(() => {
+                handleFleetStatusSuccess();
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                characterData: true
+            });
+
+            handleFleetStatusSuccess();
         }
 
         function createUI () {
@@ -376,20 +466,32 @@
 
         function observeDiscoveryActions () {
             document.addEventListener("click", (event) => {
-                const target = event.target instanceof Element ? event.target.closest("#ago_discovery") : null;
+                const source = event.target instanceof Element
+                    ? event.target
+                    : event.target instanceof Node
+                        ? event.target.parentElement
+                        : null;
+                if (!source) {
+                    return;
+                }
+
+                const target = source.closest("#ago_discovery");
                 if (!target) {
                     return;
                 }
 
+                reserveNextDiscoveryTarget();
                 scheduleDiscoverySendRescanBurst();
             }, true);
         }
 
         function init () {
+            ensureAllDiscoveryEntries();
             createUI();
             updateUI();
             observeGalaxy();
             observeDiscoveryActions();
+            observeFleetStatus();
 
             setTimeout(() => {
                 runScanAndRefresh();
