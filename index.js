@@ -14,6 +14,7 @@
         const STORAGE_KEY = "ogameDiscovery";
         const MAX_SYSTEM = 499;
         const MAX_POSITION = 15;
+        const MAX_GALAXY_DEFAULT = 9;
         const SCAN_DELAY = 250;
         const DISCOVERY_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
         const DISCOVERY_RESEND_SCAN_COUNT = 12;
@@ -170,6 +171,51 @@
             return order;
         }
 
+        function getMaxGalaxy () {
+            const gInput = document.querySelector("#galaxy_input");
+            if (!gInput) {
+                return MAX_GALAXY_DEFAULT;
+            }
+
+            const candidates = [
+                gInput.getAttribute("max"),
+                gInput.getAttribute("data-max"),
+                gInput.dataset ? gInput.dataset.max : null,
+            ];
+
+            for (const value of candidates) {
+                const maxGalaxy = parseInt(value || "", 10);
+                if (Number.isFinite(maxGalaxy) && maxGalaxy > 0) {
+                    return maxGalaxy;
+                }
+            }
+
+            return MAX_GALAXY_DEFAULT;
+        }
+
+        function ensureAllDiscoveryEntries () {
+            const maxGalaxy = getMaxGalaxy();
+            const data = loadData();
+            let hasChanges = false;
+
+            for (let g = 1; g <= maxGalaxy; g++) {
+                for (let s = 1; s <= MAX_SYSTEM; s++) {
+                    for (let p = 1; p <= MAX_POSITION; p++) {
+                        const key = g + ":" + s + ":" + p;
+
+                        if (!(key in data)) {
+                            data[key] = 0;
+                            hasChanges = true;
+                        }
+                    }
+                }
+            }
+
+            if (hasChanges) {
+                saveData(data);
+            }
+        }
+
         function scanSystem () {
             const coords = getVisibleGalaxyCoords();
             if (!coords) {
@@ -233,14 +279,7 @@
             for (const system of systems) {
                 for (let p = 1; p <= MAX_POSITION; p++) {
                     const key = start.galaxy + ":" + system + ":" + p;
-
-                    if (!(
-                        key in data
-                    )) {
-                        continue;
-                    }
-
-                    const value = data[key];
+                    const value = key in data ? data[key] : 0;
 
                     if (value === 0 || value < now) {
                         return {
@@ -447,6 +486,7 @@
         }
 
         function init () {
+            ensureAllDiscoveryEntries();
             createUI();
             updateUI();
             observeGalaxy();
