@@ -260,6 +260,20 @@
             updateUI();
         }
 
+        function reserveNextDiscoveryTarget () {
+            const next = findNext();
+            if (!next) {
+                return;
+            }
+
+            const data = loadData();
+            const key = next.g + ":" + next.s + ":" + next.p;
+
+            data[key] = Date.now() + DISCOVERY_COOLDOWN_MS;
+            saveData(data);
+            updateUI();
+        }
+
         function scheduleDiscoverySendRescanBurst () {
             if (resendScanTimer) {
                 clearInterval(resendScanTimer);
@@ -376,11 +390,21 @@
 
         function observeDiscoveryActions () {
             document.addEventListener("click", (event) => {
-                const target = event.target instanceof Element ? event.target.closest("#ago_discovery") : null;
+                const source = event.target instanceof Element
+                    ? event.target
+                    : event.target instanceof Node
+                        ? event.target.parentElement
+                        : null;
+                if (!source) {
+                    return;
+                }
+
+                const target = source.closest("#ago_discovery");
                 if (!target) {
                     return;
                 }
 
+                reserveNextDiscoveryTarget();
                 scheduleDiscoverySendRescanBurst();
             }, true);
         }
