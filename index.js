@@ -35,13 +35,12 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         }
 
-        function getPlanetCoords () {
-            const el = document.querySelector(".planetlink.active .planet-koords");
-            if (!el) {
+        function parseCoordsFromText (text) {
+            if (!text) {
                 return null;
             }
 
-            const match = el.textContent.match(/\[(\d+):(\d+):(\d+)\]/);
+            const match = text.match(/\[(\d+):(\d+):(\d+)\]/);
             if (!match) {
                 return null;
             }
@@ -51,6 +50,24 @@
                 system: parseInt(match[2], 10),
                 position: parseInt(match[3], 10),
             };
+        }
+
+        function getPlanetCoords () {
+            const activePlanetCoords = document.querySelector(".planetlink.active .planet-koords");
+            if (activePlanetCoords) {
+                const parsedPlanetCoords = parseCoordsFromText(activePlanetCoords.textContent || "");
+                if (parsedPlanetCoords) {
+                    return parsedPlanetCoords;
+                }
+            }
+
+            const activeMoon = document.querySelector(".moonlink.active");
+            if (!activeMoon) {
+                return null;
+            }
+
+            const moonTooltip = activeMoon.getAttribute("data-tooltip-title") || "";
+            return parseCoordsFromText(moonTooltip);
         }
 
         function getVisibleGalaxyCoords () {
