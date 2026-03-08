@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OGame Discovery Helper
 // @namespace    ogame.discovery.helper
-// @version      18.0
+// @version      18.1
 // @description  Discovery Tracker
 // @match        https://*.ogame.gameforge.com/game/*
 // @grant        none
@@ -127,6 +127,14 @@
             return Date.now() + DISCOVERY_COOLDOWN_MS;
         }
 
+        function isFleetSlotLimit (text) {
+            if (!text) {
+                return false;
+            }
+
+            return /maximale\s+anzahl\s+flotten\s+erreicht|keine\s+freien\s+flottenslots\s+verf[üu]gbar/i.test(text);
+        }
+
         function normalizeSystem (system) {
             let result = system;
 
@@ -190,6 +198,11 @@
 
                 if (icon.classList.contains("planetDiscoverUnavailable")) {
                     const tooltip = icon.getAttribute("data-tooltip-title") || "";
+
+                    if (isFleetSlotLimit(tooltip)) {
+                        return;
+                    }
+
                     data[key] = getUnavailableUntil(tooltip);
                     return;
                 }
